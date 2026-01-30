@@ -1,0 +1,34 @@
+---
+- name: Nokia SR Linux - Software Version Audit
+  hosts: all
+  gather_facts: no
+  vars:
+    # Variables like ansible_connection, ansible_user, ansible_password, and
+    # ansible_network_os are expected from inventory (netbox_inventory)
+  tasks:
+    - name: Attempt to run 'show version'
+      block:
+        - name: Show version
+          ansible.netcommon.cli_command:
+            command: show version
+          register: show_version
+      rescue:
+        - name: Fallback - show system information
+          ansible.netcommon.cli_command:
+            command: show system information
+          register: show_sysinfo
+
+    - name: Determine version text
+      set_fact:
+        srl_version_text: >-
+          {{ (show_version.stdout if (show_version is defined and (show_version.stdout | default('') | length) > 0) else (show_sysinfo.stdout | default(''))) | trim }}
+
+    - name: Publish aggregated versions
+      set_stats:
+        data:
+          versions: "{{ (versions | default({})) | combine({inventory_hostname: (srl_version_text | default('n/a'))}) }}"
+        aggregate: yes
+
+    - name: Debug - version summary per host
+      debug:
+        msg: "Host={{ inventory_hostname }} Version={{ srl_version_text | default('n/a') }}"
