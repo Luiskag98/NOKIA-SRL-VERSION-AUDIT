@@ -1,27 +1,12 @@
 ---
-- name: Software version check (generic - netcommon)
+- name: Nokia version check (raw SSH)
   hosts: all
   gather_facts: no
-  vars:
-    # Inventory should provide connection details:
-    # ansible_connection: network_cli
-    # ansible_network_os: <platform compatible with CLI>
-    # ansible_user / ansible_password
-    # ansible_port (if not 22)
-    version_commands:
-      - "show version"
-      - "show system information"
   tasks:
-    - name: Run version commands via CLI
-      ansible.netcommon.cli_command:
-        command: "{{ item }}"
-      loop: "{{ version_commands }}"
-      register: version_out
+    - name: Get system info via raw SSH
+      ansible.builtin.raw: "show system information"
+      register: output
 
-    - name: Aggregate CLI output
-      ansible.builtin.set_fact:
-        version_raw_output: "{{ version_out.results | map(attribute='stdout') | list }}"
-
-    - name: Print aggregated version info
-      ansible.builtin.debug:
-        var: version_raw_output
+    - name: Show result
+      debug:
+        var: output.stdout_lines
