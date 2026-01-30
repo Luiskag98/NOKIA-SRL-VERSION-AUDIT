@@ -1,0 +1,8 @@
+---
+- name: Diagnostic CLI (generic netcommon)
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: Show system information
+      ansible.netcommon.cli_command:
+        command: "show system information"
