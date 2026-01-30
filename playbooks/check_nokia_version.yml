@@ -3,32 +3,32 @@
   hosts: all
   gather_facts: no
   vars:
-    # Variables like ansible_connection, ansible_user, ansible_password, and
-    # ansible_network_os are expected from inventory (netbox_inventory)
+    ansible_connection: network_cli
   tasks:
-    - name: Attempt to run 'show version'
-      block:
-        - name: Show version
-          ansible.netcommon.cli_command:
-            command: show version
-          register: show_version
-      rescue:
-        - name: Fallback - show system information
-          ansible.netcommon.cli_command:
-            command: show system information
-          register: show_sysinfo
+    - name: Show version
+      ansible.netcommon.cli_command:
+        command: show version
+      register: show_version
+      ignore_errors: yes
 
-    - name: Determine version text
+    - name: Fallback - show system information when show version fails
+      ansible.netcommon.cli_command:
+        command: show system information
+      when: show_version is failed
+      register: show_system_info
+      ignore_errors: yes
+
+    - name: Determine version string
       set_fact:
-        srl_version_text: >-
-          {{ (show_version.stdout if (show_version is defined and (show_version.stdout | default('') | length) > 0) else (show_sysinfo.stdout | default(''))) | trim }}
+        srl_version: >-
+          {{ (show_version.stdout if (show_version is defined and (show_version.rc is not defined or show_version.rc == 0)) else (show_system_info.stdout | default(''))) | trim }}
 
-    - name: Publish aggregated versions
+    - name: Publish version per host
       set_stats:
         data:
-          versions: "{{ (versions | default({})) | combine({inventory_hostname: (srl_version_text | default('n/a'))}) }}"
+          versions: {"{{ inventory_hostname }}": "{{ srl_version | default('') }}"}
         aggregate: yes
 
-    - name: Debug - version summary per host
+    - name: Debug version
       debug:
-        msg: "Host={{ inventory_hostname }} Version={{ srl_version_text | default('n/a') }}"
+        msg: "{{ inventory_hostname }} -> {{ srl_version | default('unknown') }}"
