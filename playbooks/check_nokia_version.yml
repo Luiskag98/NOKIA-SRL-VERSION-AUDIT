@@ -1,34 +1,27 @@
 ---
-- name: Nokia SR Linux - Software Version Audit
+- name: Software version check (generic - netcommon)
   hosts: all
   gather_facts: no
   vars:
-    ansible_connection: network_cli
+    # Inventory should provide connection details:
+    # ansible_connection: network_cli
+    # ansible_network_os: <platform compatible with CLI>
+    # ansible_user / ansible_password
+    # ansible_port (if not 22)
+    version_commands:
+      - "show version"
+      - "show system information"
   tasks:
-    - name: Show version
+    - name: Run version commands via CLI
       ansible.netcommon.cli_command:
-        command: show version
-      register: show_version
-      ignore_errors: yes
+        command: "{{ item }}"
+      loop: "{{ version_commands }}"
+      register: version_out
 
-    - name: Fallback - show system information when show version fails
-      ansible.netcommon.cli_command:
-        command: show system information
-      when: show_version is failed
-      register: show_system_info
-      ignore_errors: yes
+    - name: Aggregate CLI output
+      ansible.builtin.set_fact:
+        version_raw_output: "{{ version_out.results | map(attribute='stdout') | list }}"
 
-    - name: Determine version string
-      set_fact:
-        srl_version: >-
-          {{ (show_version.stdout if (show_version is defined and (show_version.rc is not defined or show_version.rc == 0)) else (show_system_info.stdout | default(''))) | trim }}
-
-    - name: Publish version per host
-      set_stats:
-        data:
-          versions: {"{{ inventory_hostname }}": "{{ srl_version | default('') }}"}
-        aggregate: yes
-
-    - name: Debug version
-      debug:
-        msg: "{{ inventory_hostname }} -> {{ srl_version | default('unknown') }}"
+    - name: Print aggregated version info
+      ansible.builtin.debug:
+        var: version_raw_output
